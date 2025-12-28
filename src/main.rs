@@ -3,10 +3,14 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use glob::glob;
+use indicatif::{ProgressBar, ProgressStyle};
 
 mod client;
 mod server;
+mod batch;
 use client::{check_server_health, ocr_via_server, OcrResult};
+use batch::{process_batch, BatchResult};
 
 /// RustOCR - A fast Rust CLI for EasyOCR with 80+ language support
 #[derive(Parser, Debug)]
@@ -59,6 +63,14 @@ struct Args {
     /// Check server status
     #[arg(long, conflicts_with_all = ["use_server", "server", "server_stop"])]
     server_status: bool,
+    
+    /// Process directory of images (glob pattern, e.g., "./images/*.jpg")
+    #[arg(long, conflicts_with = "input")]
+    dir: Option<String>,
+    
+    /// Output directory for batch results
+    #[arg(long)]
+    output_dir: Option<String>,
 }
 
 fn get_bridge_script_path() -> Result<PathBuf> {
@@ -169,6 +181,64 @@ fn main() -> Result<()> {
         
         // Keep the server running (don't wait for it to finish)
         std::mem::forget(child);
+        return Ok(());
+    }
+
+    // Handle batch processing
+    if let Some(pattern) = &args.dir {
+        let files: Vec<String> = glob(pattern)
+            .context("Failed to read glob pattern")?
+            .filter_map(|entry| entry.ok())
+            .filter(|path| path.is_file())
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+
+        if files.is_empty() {
+            anyhow::bail!("No files found matching pattern: {}", pattern);
+        }
+
+        eprintln!("Found {} images to process", files.len());
+
+        let batch_results = process_batch(
+            &files,
+            &args.languages,
+            args.detail,
+            args.gpu,
+            args.use_server,
+            &args.server_url,
+            run_ocr_subprocess,
+        );
+
+        // Output batch results
+        let successful = batch_results.iter().filter(|r| r.success).count();
+        let failed = batch_results.len() - successful;
+
+        if let Some(output_dir) = &args.output_dir {
+            // Save results to individual files
+            std::fs::create_dir_all(output_dir)?;
+            for result in &batch_results {
+                if result.success {
+                    let filename = Path::new(&result.file)
+                        .file_stem()
+                        .unwrap()
+                        .to_string_lossy();
+                    let output_file = Path::new(output_dir).join(format!("{}.json", filename));
+                    let json = serde_json::to_string_pretty(&result.results)?;
+                    std::fs::write(output_file, json)?;
+                }
+            }
+            eprintln!("\nResults saved to: {}", output_dir);
+        } else {
+            // Output summary JSON
+            let json = serde_json::to_string_pretty(&batch_results)?;
+            println!("{}", json);
+        }
+
+        eprintln!("\nBatch Summary:");
+        eprintln!("  Total: {}", batch_results.len());
+        eprintln!("  Successful: {}", successful);
+        eprintln!("  Failed: {}", failed);
+
         return Ok(());
     }
 
