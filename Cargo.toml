@@ -1,6 +1,6 @@
 [package]
 name = "rustocr"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = ["RustOCR Contributors"]
 description = "High-performance Rust CLI for EasyOCR with 80+ language support, featuring server mode and batch processing. Fastly Built by FastBuilder.AI"
