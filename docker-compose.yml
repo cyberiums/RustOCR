@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  rustocr-server:
+    build: .
+    image: rustocr:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/root/.EasyOCR/model
+      - ./images:/data/images
+      - ./results:/data/results
+    environment:
+      - RUSTOCR_GPU=false
+    command: python3 /usr/local/bin/easyocr_server_enhanced.py --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+
+  rustocr-cli:
+    build: .
+    image: rustocr:latest
+    volumes:
+      - ./images:/data/images
+      - ./results:/data/results
+    environment:
+      - RUSTOCR_GPU=false
+    entrypoint: rustocr
+    profiles: ["cli"]  # Only start with docker-compose --profile cli up
