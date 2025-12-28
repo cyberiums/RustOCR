@@ -1,5 +1,7 @@
 # RustOCR
 
+**Fastly Built by [FastBuilder.AI](https://fastbuilder.ai)** 🚀
+
 A fast Rust CLI wrapper for EasyOCR providing OCR capabilities with 80+ language support.
 
 ## Features
