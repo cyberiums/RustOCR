@@ -4,18 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// Represents the result of OCR detection for a single text region
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OcrResult {
-    /// Bounding box coordinates as [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
-    #[serde(default)]
-    pub bbox: Vec<Vec<i32>>,
-    /// Detected text
-    pub text: String,
-    /// Confidence score (0.0 to 1.0)
-    #[serde(default)]
-    pub confidence: f64,
-}
+mod client;
+use client::{check_server_health, ocr_via_server, OcrResult};
 
 /// RustOCR - A fast Rust CLI for EasyOCR with 80+ language support
 #[derive(Parser, Debug)]
@@ -40,6 +30,14 @@ struct Args {
     /// Output format: json, text, or detailed
     #[arg(short, long, default_value = "json")]
     output: String,
+    
+    /// Use server mode instead of subprocess (faster for multiple requests)
+    #[arg(long)]
+    use_server: bool,
+    
+    /// Server URL (default: http://localhost:8000)
+    #[arg(long, default_value = "http://localhost:8000")]
+    server_url: String,
 }
 
 fn get_bridge_script_path() -> Result<PathBuf> {
@@ -69,7 +67,7 @@ fn get_bridge_script_path() -> Result<PathBuf> {
     Ok(bridge_script)
 }
 
-fn run_ocr(
+fn run_ocr_subprocess(
     image_path: &str,
     languages: &[String],
     gpu: bool,
@@ -131,10 +129,29 @@ fn main() -> Result<()> {
     eprintln!("Initializing OCR with languages: {:?}", args.languages);
     eprintln!("GPU enabled: {}", args.gpu);
     eprintln!("Processing image: {}", args.input);
-
-    // Perform OCR
-    let results = run_ocr(&args.input, &args.languages, args.gpu, args.detail)
-        .context("Failed to perform OCR")?;
+    
+    // Choose mode
+    let results = if args.use_server {
+        eprintln!("Using server mode at: {}", args.server_url);
+        
+        // Check server health
+        if !check_server_health(&args.server_url)? {
+            eprintln!("Warning: Server at {} is not responding", args.server_url);
+            eprintln!("Make sure the server is running: python3 easyocr_server.py");
+            anyhow::bail!("Server not available");
+        }
+        
+        ocr_via_server(
+            &args.input,
+            &args.languages,
+            args.detail,
+            args.gpu,
+            &args.server_url
+        )?
+    } else {
+        eprintln!("Using subprocess mode");
+        run_ocr_subprocess(&args.input, &args.languages, args.gpu, args.detail)?
+    };
 
     // Output results based on format
     match args.output.as_str() {
