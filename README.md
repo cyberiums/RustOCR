@@ -35,7 +35,7 @@ Before using RustOCR, ensure you have:
 ### Build from source
 
 ```bash
-cd /Users/prabhatsingh/EasyOCR/rustOCR
+cd /home/user/EasyOCR/rustOCR
 cargo build --release
 ```
 
