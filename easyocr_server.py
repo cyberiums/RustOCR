@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 from PIL import Image
-import easyocr  # TODO: Change to easyocr2 when package is published
+import easyocr2 as easyocr
 
 # Configure logging
 logging.basicConfig(
