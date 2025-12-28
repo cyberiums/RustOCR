@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 mod client;
+mod server;
 use client::{check_server_health, ocr_via_server, OcrResult};
 
 /// RustOCR - A fast Rust CLI for EasyOCR with 80+ language support
@@ -13,7 +14,7 @@ use client::{check_server_health, ocr_via_server, OcrResult};
 struct Args {
     /// Input image file path
     #[arg(short, long)]
-    input: String,
+    input: Option<String>,
 
     /// Languages to recognize (comma-separated, e.g., "en" or "ch_sim,en")
     #[arg(short, long, default_value = "en", value_delimiter = ',')]
@@ -38,6 +39,26 @@ struct Args {
     /// Server URL (default: http://localhost:8000)
     #[arg(long, default_value = "http://localhost:8000")]
     server_url: String,
+    
+    /// Start server mode (run as background server)
+    #[arg(long, conflicts_with = "use_server")]
+    server: bool,
+    
+    /// Server port (when using --server)
+    #[arg(long, default_value = "8000")]
+    server_port: u16,
+    
+    /// Server host (when using --server)
+    #[arg(long, default_value = "127.0.0.1")]
+    server_host: String,
+    
+    /// Stop running server
+    #[arg(long, conflicts_with_all = ["use_server", "server"])]
+    server_stop: bool,
+    
+    /// Check server status
+    #[arg(long, conflicts_with_all = ["use_server", "server", "server_stop"])]
+    server_status: bool,
 }
 
 fn get_bridge_script_path() -> Result<PathBuf> {
@@ -115,9 +136,49 @@ fn run_ocr_subprocess(
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Validate input file exists
-    if !Path::new(&args.input).exists() {
-        anyhow::bail!("Input file does not exist: {}", args.input);
+    // Handle server management commands
+    if args.server_stop {
+        return server::stop_server();
+    }
+    
+    if args.server_status {
+        if server::is_server_running() {
+            println!("Server is running");
+            if let Some(pid) = server::read_server_pid() {
+                println!("PID: {}", pid);
+            }
+        } else {
+            println!("Server is not running");
+        }
+        return Ok(());
+    }
+    
+    if args.server {
+        let child = server::start_server(args.server_port, &args.server_host)?;
+        let pid = child.id();
+        
+        eprintln!("Server started successfully!");
+        eprintln!("PID: {}", pid);
+        eprintln!("URL: http://{}:{}", args.server_host, args.server_port);
+        eprintln!("\nYou can now use the client:");
+        eprintln!("  rustocr -i image.jpg --use-server\n");
+        eprintln!("To stop the server:");
+        eprintln!("  rustocr --server-stop\n");
+        
+        server::save_server_pid(pid)?;
+        
+        // Keep the server running (don't wait for it to finish)
+        std::mem::forget(child);
+        return Ok(());
+    }
+
+    // Validate input is provided for OCR operations
+    let input = args.input.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--input is required for OCR operations"))?;
+
+    // Validate input file exists (only for OCR operations)
+    if !Path::new(input).exists() {
+        anyhow::bail!("Input file does not exist: {}", input);
     }
 
     // Validate detail level
@@ -128,7 +189,7 @@ fn main() -> Result<()> {
     // Print initialization message
     eprintln!("Initializing OCR with languages: {:?}", args.languages);
     eprintln!("GPU enabled: {}", args.gpu);
-    eprintln!("Processing image: {}", args.input);
+    eprintln!("Processing image: {}", input);
     
     // Choose mode
     let results = if args.use_server {
@@ -142,7 +203,7 @@ fn main() -> Result<()> {
         }
         
         ocr_via_server(
-            &args.input,
+            input,
             &args.languages,
             args.detail,
             args.gpu,
@@ -150,7 +211,7 @@ fn main() -> Result<()> {
         )?
     } else {
         eprintln!("Using subprocess mode");
-        run_ocr_subprocess(&args.input, &args.languages, args.gpu, args.detail)?
+        run_ocr_subprocess(input, &args.languages, args.gpu, args.detail)?
     };
 
     // Output results based on format
