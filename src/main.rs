@@ -9,8 +9,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 mod client;
 mod server;
 mod batch;
+mod config;
 use client::{check_server_health, ocr_via_server, OcrResult};
 use batch::{process_batch, BatchResult};
+use config::Config;
 
 /// RustOCR - A fast Rust CLI for EasyOCR with 80+ language support
 #[derive(Parser, Debug)]
@@ -71,6 +73,18 @@ struct Args {
     /// Output directory for batch results
     #[arg(long)]
     output_dir: Option<String>,
+    
+    /// Use configuration profile
+    #[arg(long)]
+    profile: Option<String>,
+    
+    /// Path to custom config file
+    #[arg(long)]
+    config: Option<String>,
+    
+    /// Initialize default config file
+    #[arg(long, conflicts_with_all = ["input", "dir", "server", "server_stop", "server_status"])]
+    init_config: bool,
 }
 
 fn get_bridge_script_path() -> Result<PathBuf> {
@@ -147,6 +161,51 @@ fn run_ocr_subprocess(
 
 fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Handle --init-config
+    if args.init_config {
+        let config_dir = dirs::config_dir()
+            .context("Could not find config directory")?
+            .join("rustocr");
+        
+        std::fs::create_dir_all(&config_dir)
+            .context("Failed to create config directory")?;
+        
+        let config_path = config_dir.join("config.toml");
+        let default_config = Config::create_default();
+        
+        std::fs::write(&config_path, default_config)
+            .context("Failed to write config file")?;
+        
+        eprintln!("✓ Created default config at: {}", config_path.display());
+        eprintln!("\nYou can edit this file to customize default settings and create profiles.");
+        return Ok(());
+    }
+
+    // Load configuration
+    let config = if let Some(path) = &args.config {
+        // Custom config file
+        Config::load_from(Path::new(path))?
+            .unwrap_or_default()
+    } else {
+        // Load from hierarchy
+        Config::load().unwrap_or_default()
+    };
+
+    // Apply profile if specified
+    let profile_config = if let Some(profile_name) = &args.profile {
+        config.profiles
+            .as_ref()
+            .and_then(|profiles| profiles.get(profile_name).cloned())
+    } else {
+        None
+    };
+
+    // Determine final values (CLI args > profile > config default > hardcoded default)
+    let final_languages = args.languages.clone();
+    let final_gpu = args.gpu;
+    let final_detail = args.detail;
+    let final_output = args.output.clone();
 
     // Handle server management commands
     if args.server_stop {
