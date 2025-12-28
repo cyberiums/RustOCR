@@ -3,8 +3,21 @@ name = "rustocr"
 version = "0.4.0"
 edition = "2021"
 authors = ["RustOCR Contributors"]
-description = "A Rust CLI wrapper for EasyOCR providing OCR capabilities with 80+ languages support"
+description = "High-performance Rust CLI for EasyOCR with 80+ language support, featuring server mode and batch processing"
 license = "Apache-2.0"
+repository = "https://github.com/cyberiums/RustOCR"
+homepage = "https://github.com/cyberiums/RustOCR"
+documentation = "https://github.com/cyberiums/RustOCR/blob/main/README.md"
+readme = "README.md"
+keywords = ["ocr", "easyocr", "cli", "image-processing", "text-recognition"]
+categories = ["command-line-utilities", "multimedia::images", "text-processing"]
+exclude = [
+    "tests/*",
+    ".github/*",
+    "*.jpg",
+    "*.png",
+    "images/*"
+]
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
