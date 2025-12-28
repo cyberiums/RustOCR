@@ -93,7 +93,7 @@ EasyOCR supports 80+ languages including:
 - **Devanagari**: Hindi (hi), Marathi (mr), Nepali (ne)
 - And many more...
 
-See the [full list of supported languages](https://www.jaided.ai/easyocr).
+See the[full list of supported languages](https://github.com/cyberiums/EasyOCR).
 
 ## Output Formats
 
@@ -173,5 +173,5 @@ Apache-2.0 (matching the parent EasyOCR project)
 
 ## Credits
 
-- [EasyOCR](https://github.com/JaidedAI/EasyOCR) - The underlying OCR engine
+- [EasyOCR2](https://github.com/cyberiums/EasyOCR) - The underlying OCR engine
 - Built with [PyO3](https://pyo3.rs/) and [Clap](https://docs.rs/clap/)
