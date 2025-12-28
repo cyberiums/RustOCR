@@ -1,6 +1,6 @@
 [package]
 name = "rustocr"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["RustOCR Contributors"]
 description = "A Rust CLI wrapper for EasyOCR providing OCR capabilities with 80+ languages support"
